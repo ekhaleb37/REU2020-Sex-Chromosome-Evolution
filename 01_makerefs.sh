@@ -2,8 +2,8 @@
 #SBATCH -p shared
 #SBATCH -N 1
 #SBATCH -n 1
-#SBATCH --mem 3000
-#SBATCH -t 180
+#SBATCH --mem 4000
+#SBATCH -t 0-04:00:00
 #SBATCH -o makerefs.%N.%j.out
 #SBATCH -e makerefs.%N.%j.err
 
