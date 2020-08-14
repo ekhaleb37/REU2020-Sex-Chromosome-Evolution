@@ -39,8 +39,14 @@ add plots of 'meandepth vs endpos' and 'normdp vs endopos' and 'normdp.male vs n
 
 ## Using normdp male vs female plot, assign scaffolds to a location
 add filtered plot of normdp male vs female and filtered histogram
-
+```{r}
+ggplot(NA_both_filtered, aes(x=rel.dp, col=chr))+ geom_histogram(bins=50)
+ggplot(NA_both_filtered, aes(x=rel.dp,y=normdp.female, col=chr))+ geom_point()
+ggplot(NA_both_filtered, aes(x=normdp.male,y=normdp.female, col=chr))+ geom_point()
+```
 ## Challenge our results
 add plot of 'coverage in male vs female'
-
+```{r,include=FALSE}
+NA_both_filtered %>% filter(chr == 'W') %>% ggplot(aes(x=coverage.female, y=coverage.male))+ geom_point() #expect 100 coverage in fem, and expect lower coverage in males
+```
 ## Confirm results by blasting W scaffolds to chicken genome
