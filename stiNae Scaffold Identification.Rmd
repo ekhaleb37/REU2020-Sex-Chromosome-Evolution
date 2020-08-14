@@ -1,0 +1,360 @@
+---
+title: "REU2020"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r}
+setwd("C:/Users/kzilla/Documents/REU2020/")
+```
+```{r}
+#install.packages("tidyverse")
+#install.packages("patchwork")
+#install.packages("RColorBrewer")
+```
+```{r}
+library(tidyverse)
+library(patchwork)
+library(RColorBrewer)
+library(ggplot2)
+```
+
+#CM = chromosomes
+#JAA = Scaffolds (not sure where they are)
+#endpoints can be used as length of scaffold, coverage percentage,
+#use meandepth instead of coverage
+```{r}
+stiNae_M.tb <- read_tsv("stiNae_male.sort.coverage.out")
+stiNae_M.tb
+stiNae_Fem.tb <- read_tsv("stiNae_female.sort.coverage.out")
+stiNae_Fem.tb
+#stiNae_F1.tb <- read_tsv("stiNae_female_L001_001.sort.coverage.out")
+#stiNae_F1.tb
+#stiNae_F4.tb <- read_tsv("stiNae_female_L004_001.sort.coverage.out")
+```
+#Changing 1st colomn name from rname to chromosome
+```{r}
+SN_male <- stiNae_M.tb %>% rename(chromosome = "#rname")
+SN_male
+SN_female <- stiNae_Fem.tb %>% rename(chromosome = "#rname")
+SN_female
+#SN_Fem1 <- stiNae_F1.tb %>% rename(chromosome = "#rname")
+#SN_Fem1
+#SN_Fem4 <- stiNae_F4.tb %>% rename(chromosome = "#rname")
+#SN_Fem4
+```
+
+```{r}
+SN_male.selected <- SN_male %>% select(chromosome,startpos,endpos,meandepth) %>% filter(endpos > 1e6) %>% mutate(meandp = mean(meandepth),normdp = meandepth/meandp,sex = "M") %>%  arrange(desc(normdp))
+SN_male.selected
+
+SN_fem.selected <- SN_female %>% select(chromosome,startpos,endpos,meandepth) %>% filter(endpos > 100000) %>% mutate(meandp = mean(meandepth),normdp = meandepth/meandp,sex = "F") %>%  arrange(desc(normdp))
+SN_fem.selected
+
+#SN_Fem1.selected <- SN_Fem1 %>% select(chromosome,startpos,endpos,meandepth) %>% filter(endpos > 100000) %>% mutate(meandp = mean(meandepth),normdp = meandepth/meandp,sex = "F1") %>% arrange(normdp)
+#SN_Fem1.selected
+#SN_Fem4.selected <- SN_Fem4 %>% select(chromosome,startpos,endpos,meandepth) %>% filter(endpos > 100000) %>% mutate(meandp = mean(meandepth),normdp = meandepth/meandp,sex = "F4") %>% arrange(normdp)
+#SN_Fem4.selected
+```
+#StiNai table with male and fem combined
+```{r}
+SN_male.selected.filter <- SN_male.selected %>% filter(normdp > 0.8,normdp < 1.2)
+SN_male.selected.filter
+
+SN_fem.selected.filter <- SN_fem.selected %>% filter(normdp < 0.6)
+SN_fem.selected.filter
+
+#SN_Fem1.selected.filter <- SN_Fem1.selected %>% filter(normdp < 0.6)
+#SN_Fem1.selected.filter
+#SN_Fem4.selected.filter <- SN_Fem4.selected %>% filter(normdp < 0.6)
+#SN_Fem4.selected.filter
+
+stiNae.filter.all <- combine(SN_male.selected.filter, SN_fem.selected.filter) %>% arrange(chromosome)
+stiNae.filter.all
+```
+
+#Histogram comparing meandepth, endpos/length in male vs females
+```{r}
+ggplot(SN_male.selected,aes(x=meandepth)) + geom_histogram()
+```
+#Create Bed file with scaffold start-1, and end
+#In the male sample, select 3 autosomes between 1 million and 10 million
+```{r}
+SN_Male.bed <- SN_male.selected.filter %>% mutate(start=startpos-1) %>% select(chromosome,start,endpos) %>% filter(endpos>1000000,endpos<10000000) %>% filter(chromosome == "CM021720.1"|chromosome == "CM021719.1"|chromosome == "CM021723.1")
+SN_Male.bed
+
+SN_Fem.bed <- SN_fem.selected.filter %>% mutate(start=startpos-1) %>% select(chromosome,start,endpos)
+SN_Fem.bed
+
+#SN_Fem1.bed <- SN_Fem1.selected.filter %>% mutate(start=startpos-1) %>% select(chromosome,start,endpos)
+#SN_Fem1.bed
+#SN_Fem4.bed <- SN_Fem4.selected.filter %>% mutate(start=startpos-1) %>% select(chromosome,start,endpos)
+#SN_Fem4.bed
+```
+#Export/write the bed files
+```{r}
+write_tsv(SN_Male.bed,"SN_Male.bed",col_names = F)
+write_tsv(SN_Fem.bed,"SN_Fem.bed",col_names = F)
+#write_tsv(SN_Fem1.bed,"SN_Fem1.bed",col_names = F)
+#write_tsv(SN_Fem4.bed,"SN_Fem4.bed",col_names = F)
+```
+
+```{r}
+SN_male.selected.test <- SN_male %>% select(chromosome,startpos,endpos,meandepth) %>% filter(endpos > 100000) %>% mutate(meandp = meandepth/2,sex = "M") %>%  arrange(desc(meandp))
+SN_male.selected.test
+
+#SN_Fem1.selected.test <- SN_Fem1 %>% select(chromosome,startpos,endpos,meandepth) %>% filter(endpos > 100000) %>% mutate(meandp = meandepth/1,sex = "F1") %>% arrange(desc(meandp))
+#SN_Fem1.selected.test
+
+#SN_Fem4.selected.test <- SN_Fem4 %>% select(chromosome,startpos,endpos,meandepth) %>% filter(endpos > 100000) %>% mutate(meandp = meandepth/1,sex = "F4") %>%  arrange(desc(meandp))
+#SN_Fem4.selected.test
+
+fem_sexChr <- read_delim("SN_fem.depth.txt",delim = "\t",col_names = F) %>% rename(scaffold = X1, pos = X2, cov = X3) %>% mutate(chr = 'sex') %>% select(chr, cov)
+fem_sexChr
+
+#stiNae_all.test <- combine(SN_male.selected.test,SN_Fem1.selected.test,SN_Fem4.selected.test) %>% arrange(desc(meandp))
+#stiNae_all.test
+```
+#filter male sex chromosomes and female autosomes and create bed files to run samtools depth
+```{r}
+SN_male.chromosomes <- SN_male %>% filter(chromosome == 'CM021720.1'|chromosome == 'CM021719.1'|chromosome == 'CM021723.1') %>% mutate(start=startpos-1) %>% select(chromosome,start,endpos)
+SN_male.chromosomes
+#CM021720.1 CM021719.1 CM021723.1
+write_tsv(SN_male.chromosomes,'SN_male.chromosomes.bed',col_names = F)
+SN_female.autosomes <- SN_female %>% filter(chromosome == 'MU012867.1'|chromosome == 'JAACYO010027533.1'|chromosome == 'MU012860.1'|chromosome == 'JAACYO010027463.1'|chromosome == 'JAACYO010027464.1'|chromosome == 'MU012868.1'|chromosome == 'MU012857.1'|chromosome == 'MU012841.1'|chromosome == 'MU012847.1'|chromosome == 'MU012850.1') %>%  mutate(start=startpos-1) %>% select(chromosome,start,endpos)
+SN_female.autosomes
+write_tsv(SN_female.autosomes,'SN_female.autosomes.bed',col_names = F)
+#MU012867.1	JAACYO010027533.1	MU012860.1 JAACYO010027463.1 JAACYO010027464.1		MU012868.1	MU012857.1 MU012841.1	MU012847.1 MU012850.1
+```
+#Load in autosome data from samtool depth on Male sample
+```{r}
+autosome.male.lst <- read_delim("SN_Male.depth.txt",delim = "\t",col_names = F)
+autosome.male.lst
+autosome.female.lst <- read_delim("SN_female.autosomes.depth.txt",delim = "\t",col_names = F)
+autosome.female.lst
+#male_autosomes <- read_delim("SN_Male.depth.txt",delim = "\t",col_names = F) %>% rename(scaffold = X1, pos = X2, cov = X3) %>% mutate(chr = 'auto') %>% select(chr,cov)
+#male_autosomes
+```
+#Load in possible sex chromosome data from samtool depth on female
+```{r}
+#fem1_sexChr <- read_delim("SN_Fem1.depth.txt",delim = "\t",col_names = F) %>% rename(scaffold = X1, pos = X2, cov = X3) %>% mutate(chr = 'sex') %>% select(chr, cov)
+#fem1_sexChr
+
+#fem4_sexChr <- read_delim("SN_Fem4.depth.txt",delim = "\t",col_names = F) %>% rename(scaffold = X1, pos = X2, cov = X3) %>% mutate(chr = 'sex') %>% select(chr, cov)
+#fem4_sexChr
+
+fem_sexChr <- read_delim("SN_fem.depth.txt",delim = "\t",col_names = F) %>% rename(scaffold = X1, pos = X2, cov = X3) %>% mutate(sex = 'F') %>% select(sex, cov)
+fem_sexChr
+
+male_sexChr <- read_delim("SN_male.chromosomes.depth.txt",delim = "\t",col_names = F) %>% rename(scaffold = X1, pos = X2, cov = X3) %>% mutate(sex = 'M') %>% select(sex, cov)
+male_sexChr
+#femcombined_temp <- combine(fem1_sexChr, fem4_sexChr)
+#femcombined_temp
+
+```
+```{r}
+#as_fem1 <- bind_rows(male_autosomes,fem1_sexChr) %>% filter(cov < 100)
+#as_fem4 <- bind_rows(male_autosomes,fem4_sexChr) %>% filter(cov < 100)
+#ggplot(as_fem1, aes(cov, fill =chr)) + geom_histogram(alpha = 0.5, position = 'identity', binwidth = 3)
+#ggplot(as_fem4, aes(cov, fill =chr)) + geom_histogram(alpha = 0.5, position = 'identity', binwidth = 3)
+```
+#plot one autosome to all sex chromosomes
+```{r}
+chromosome_CM021720.1_M <- autosome.male.lst %>% filter(X1 == 'CM021720.1') %>% rename(scaffold = X1, pos = X2, cov = X3) %>%  mutate(chr = 'auto') %>% select(chr, cov)
+chromosome_CM021720.1_M
+CM021720.1.merge <- combine(fem_sexChr,chromosome_CM021720.1_M) %>% filter(cov < 100)
+ggplot(CM021720.1.merge, aes(cov, color = chr,y = ..density..)) + geom_freqpoly(alpha = 0.5, position = 'identity', binwidth = 3)
+
+chromosome_CM021719.1_M <- autosome.male.lst %>% filter(X1 == 'CM021719.1') %>% rename(scaffold = X1, pos = X2, cov = X3) %>%  mutate(chr = 'auto') %>% select(chr, cov)
+chromosome_CM021719.1_M
+CM021719.1.merge <- combine(fem_sexChr,chromosome_CM021719.1_M) %>% filter(cov < 100)
+ggplot(CM021719.1.merge, aes(cov, color = chr,y = ..density..)) + geom_freqpoly(alpha = 0.5, position = 'identity', binwidth = 3)
+
+chromosome_CM021723.1_M <- autosome.male.lst %>% filter(X1 == 'CM021723.1') %>% rename(scaffold = X1, pos = X2, cov = X3) %>%  mutate(chr = 'auto') %>% select(chr, cov)
+chromosome_CM021723.1_M 
+CM021723.1.merge <- combine(fem_sexChr,chromosome_CM021723.1_M) %>% filter(cov < 100)
+ggplot(CM021723.1.merge, aes(cov, color = chr,y = ..density..)) + geom_freqpoly(alpha = 0.5, position = 'identity', binwidth = 3)
+```
+```{r}
+male_CM021720.1 <- SN_male %>% filter(chromosome == 'CM021720.1') %>% select(chromosome,coverage) %>% mutate(sex = 'M')
+fem_CM021720.1 <- SN_female %>% filter(chromosome == 'CM021720.1') %>% select(chromosome,coverage) %>% mutate(sex = 'F')
+CM021720.1 <- combine(male_CM021720.1,fem_CM021720.1) %>% mutate(location = 'autosome')
+CM021720.1
+
+male_CM021719.1 <- SN_male %>% filter(chromosome == 'CM021719.1') %>% select(chromosome,coverage) %>% mutate(sex = 'M')
+fem_CM021719.1 <- SN_female %>% filter(chromosome == 'CM021719.1') %>% select(chromosome,coverage) %>% mutate(sex = 'F')
+CM021719.1 <- combine(male_CM021719.1,fem_CM021719.1) %>% mutate(location = 'autosome')
+CM021719.1 
+
+male_CM021723.1 <- SN_male %>% filter(chromosome == 'CM021723.1') %>% select(chromosome,coverage) %>% mutate(sex = 'M')
+fem_CM021723.1 <- SN_female %>% filter(chromosome == 'CM021723.1') %>% select(chromosome,coverage) %>% mutate(sex = 'F')
+CM021723.1 <- combine(male_CM021723.1,fem_CM021723.1) %>% mutate(location = 'autosome')
+CM021723.1 
+#CM021720.1 CM021719.1 CM021723.1
+```
+
+```{r}
+fem_MU012867.1 <- SN_female %>% filter(chromosome == 'MU012867.1') %>% select(chromosome,coverage) %>% mutate(sex = 'F')
+male_MU012867.1 <- SN_male %>% filter(chromosome == 'MU012867.1') %>% select(chromosome,coverage) %>% mutate(sex = 'M')
+MU012867.1 <- combine(fem_MU012867.1,male_MU012867.1) %>% mutate(location = 'W chromosome')
+MU012867.1
+
+fem_JAACYO010027533.1 <- SN_female %>% filter(chromosome == 'JAACYO010027533.1') %>% select(chromosome,coverage) %>% mutate(sex = 'F')
+male_JAACYO010027533.1 <- SN_male %>% filter(chromosome == 'JAACYO010027533.1') %>% select(chromosome,coverage) %>% mutate(sex = 'M')
+JAACYO010027533.1 <- combine(fem_JAACYO010027533.1,male_JAACYO010027533.1) %>% mutate(location = 'W chromosome')
+JAACYO010027533.1
+
+fem_MU012860.1 <- SN_female %>% filter(chromosome == 'MU012860.1') %>% select(chromosome,coverage) %>% mutate(sex = 'F')
+male_MU012860.1 <- SN_male %>% filter(chromosome == 'MU012860.1') %>% select(chromosome,coverage) %>% mutate(sex = 'M')
+MU012860.1 <- combine(fem_MU012860.1,male_MU012860.1) %>% mutate(location = 'W chromosome')
+MU012860.1
+
+fem_JAACYO010027463.1 <- SN_female %>% filter(chromosome == 'JAACYO010027463.1') %>% select(chromosome,coverage) %>% mutate(sex = 'F')
+male_JAACYO010027463.1 <- SN_male %>% filter(chromosome == 'JAACYO010027463.1') %>% select(chromosome,coverage) %>% mutate(sex = 'M')
+JAACYO010027463.1 <- combine(fem_JAACYO010027463.1,male_JAACYO010027463.1) %>% mutate(location = 'W chromosome')
+JAACYO010027463.1
+
+fem_JAACYO010027464.1 <- SN_female %>% filter(chromosome == 'JAACYO010027464.1') %>% select(chromosome,coverage) %>% mutate(sex = 'F')
+male_JAACYO010027464.1 <- SN_male %>% filter(chromosome == 'JAACYO010027464.1') %>% select(chromosome,coverage) %>% mutate(sex = 'M')
+JAACYO010027464.1 <- combine(fem_JAACYO010027464.1,male_JAACYO010027464.1) %>% mutate(location = 'W chromosome')
+JAACYO010027464.1
+
+
+#MU012867.1	JAACYO010027533.1	MU012860.1 JAACYO010027463.1 JAACYO010027464.1
+
+```
+```{r}
+fem_MU012868.1 <- SN_female %>% filter(chromosome == 'MU012868.1') %>% select(chromosome,coverage) %>% mutate(sex = 'F')
+male_MU012868.1 <- SN_male %>% filter(chromosome == 'MU012868.1') %>% select(chromosome,coverage) %>% mutate(sex = 'M')
+MU012868.1 <- combine(fem_MU012868.1,male_MU012868.1) %>% mutate(location = 'W chromosome')
+MU012868.1
+
+fem_MU012857.1 <- SN_female %>% filter(chromosome == 'MU012857.1') %>% select(chromosome,coverage) %>% mutate(sex = 'F')
+male_MU012857.1 <- SN_male %>% filter(chromosome == 'MU012857.1') %>% select(chromosome,coverage) %>% mutate(sex = 'M')
+MU012857.1 <- combine(fem_MU012857.1,male_MU012857.1) %>% mutate(location = 'W chromosome')
+MU012857.1
+
+fem_MU012841.1 <- SN_female %>% filter(chromosome == 'MU012841.1') %>% select(chromosome,coverage) %>% mutate(sex = 'F')
+male_MU012841.1 <- SN_male %>% filter(chromosome == 'MU012841.1') %>% select(chromosome,coverage) %>% mutate(sex = 'M')
+MU012841.1 <- combine(fem_MU012841.1,male_MU012841.1) %>% mutate(location = 'W chromosome')
+MU012841.1
+
+fem_MU012847.1 <- SN_female %>% filter(chromosome == 'MU012847.1') %>% select(chromosome,coverage) %>% mutate(sex = 'F')
+male_MU012847.1 <- SN_male %>% filter(chromosome == 'MU012847.1') %>% select(chromosome,coverage) %>% mutate(sex = 'M')
+MU012847.1 <- combine(fem_MU012847.1,male_MU012847.1) %>% mutate(location = 'W chromosome')
+MU012847.1
+
+fem_MU012850.1 <- SN_female %>% filter(chromosome == 'MU012850.1') %>% select(chromosome,coverage) %>% mutate(sex = 'F')
+male_MU012850.1 <- SN_male %>% filter(chromosome == 'MU012850.1') %>% select(chromosome,coverage) %>% mutate(sex = 'M')
+MU012850.1 <- combine(fem_MU012850.1,male_MU012850.1) %>% mutate(location = 'W chromosome')
+MU012850.1
+
+#MU012868.1	MU012857.1 MU012841.1	MU012847.1 MU012850.1
+```
+#combine all possible scaffold identities
+```{r}
+stiNae.chromosome.locations <- combine(MU012867.1,	JAACYO010027533.1,	MU012860.1, JAACYO010027463.1, JAACYO010027464.1, MU012868.1,	MU012857.1, MU012841.1,	MU012847.1, MU012850.1)
+stiNae.chromosome.locations
+```
+#plot male autosomes vs female autosomes
+```{r}
+autosome.M <- autosome.male.lst %>% rename(scaffold = X1, pos = X2, cov = X3) %>%  mutate(sex = 'M') %>% select(sex, cov)
+autosome.M
+autosome.F <- autosome.female.lst %>% rename(scaffold = X1, pos = X2, cov = X3) %>%  mutate(sex = 'F') %>% select(sex, cov)
+autosome.merge <- combine(autosome.F,autosome.M) %>% filter(cov < 100)
+ggplot(autosome.merge, aes(cov, color = sex,y = ..density..)) + geom_freqpoly(alpha = 0.5, position = 'identity', binwidth = 3)
+ggplot(autosome.merge, aes(cov, fill = sex)) + geom_histogram(alpha = 0.5, position = 'identity', binwidth = 3)
+
+```
+#plot male and female sex chromosomes
+```{r}
+sexChr.merge <- combine(fem_sexChr,male_sexChr) %>% filter(cov < 100)
+ggplot(sexChr.merge, aes(cov, color = sex,y = ..density..)) + geom_freqpoly(alpha = 0.5, position = 'identity', binwidth = 3)
+ggplot(sexChr.merge, aes(cov, fill = sex)) + geom_histogram(alpha = 0.5, position = 'identity', binwidth = 3)
+```
+#calculate mean and median
+```{r}
+mean(autosome.M$cov) 
+median(autosome.M$cov)
+mean(autosome.F$cov)
+median(autosome.F$cov)
+mean(fem_sexChr$cov)
+median(fem_sexChr$cov)
+mean(male_sexChr$cov)
+median(male_sexChr$cov)
+```
+#normalize meandepth
+
+```{r}
+SN_male %>% filter(endpos > 1e6) %>% mutate(weighted_depth = meandepth * endpos) %>% summarize(wt_norm_dp = sum(weighted_depth)/sum(endpos))
+SN_male
+SN_male_norm <- SN_male %>% mutate(normdp = meandepth/37.05507)
+```
+#Make various plots
+```{r}
+ggplot(SN_male, aes(x=coverage, y=log10(meandepth))) + geom_point()
+ggplot(SN_male, aes(x=coverage, y=meanmapq)) + geom_point()
+ggplot(SN_male, aes(x=meanmapq, y=log10(meandepth))) + geom_point()
+ggplot(SN_male, aes(x=coverage, y=log10(endpos))) + geom_point()
+ggplot(SN_male, aes(x=meanmapq, y=log10(endpos))) + geom_point()
+ggplot(SN_male, aes(x=log10(meandepth), y=log10(endpos))) + geom_point()
+```
+```{r}
+ggplot(SN_female, aes(x=coverage, y=log10(meandepth))) + geom_point()
+ggplot(SN_female, aes(x=coverage, y=meanmapq)) + geom_point()
+ggplot(SN_female, aes(x=meanmapq, y=log10(meandepth))) + geom_point()
+ggplot(SN_female, aes(x=coverage, y=log10(endpos))) + geom_point()
+ggplot(SN_female, aes(x=meanmapq, y=log10(endpos))) + geom_point()
+ggplot(SN_female, aes(x=log10(meandepth), y=log10(endpos))) + geom_point()
+```
+```{r}
+SN_female %>% filter(endpos > 1e6, meandepth > 30) %>% mutate(weighted_depth = meandepth * endpos) %>% summarize(wt_norm_dp = sum(weighted_depth)/sum(endpos))
+SN_female_norm <- SN_female %>% mutate(normdp = meandepth/40.69054)
+```
+#plot normdp vs meanmapq and endpos to determine good cutoffs
+```{r}
+ggplot(SN_female_norm, aes(x=meanmapq, y=log10(normdp))) + geom_point()
+ggplot(SN_female_norm, aes(x=log10(normdp), y=log10(endpos))) + geom_point()
+ggplot(SN_male_norm, aes(x=meanmapq, y=log10(normdp))) + geom_point()
+ggplot(SN_male_norm, aes(x=log10(normdp), y=log10(endpos))) + geom_point()
+```
+
+```{r}
+SN_both <- full_join(SN_male_norm, SN_female_norm, by=c('chromosome' = 'chromosome', 'endpos' = 'endpos'), suffix=c('.male', '.female'))
+SN_both
+SN_both %>% filter(endpos > 1e5, meanmapq.female > 20, coverage.female > 50) %>% ggplot(aes(x=normdp.male, y=normdp.female)) + geom_point()
+SN_both.rel <- SN_both %>% mutate(rel.dp = normdp.male / normdp.female) %>% filter(rel.dp < 3) #ggplot(aes(x=rel.dp)) + geom_histogram(bins = 60)
+
+# 1.7-3 =Z, 0-0.4=W 0.6-1.5 = autosomes 
+```
+#create assigned lists
+```{r}
+SN_W <- SN_both.rel %>% filter(rel.dp > 0,rel.dp < 0.4) %>% mutate(chr = 'W')
+SN_W
+SN_Z <- SN_both.rel %>% filter(rel.dp > 1.7,rel.dp < 3) %>% mutate(chr = 'Z')
+SN_Z
+SN_Auto <- SN_both.rel %>% filter(rel.dp > 0.6,rel.dp < 1.5) %>% mutate(chr = 'Autosome')
+SN_Auto
+SN_both_filtered <- rbind(SN_Z,SN_W,SN_Auto) %>% mutate(rel.dp = normdp.male / normdp.female)
+SN_both_filtered
+```
+
+#add chromsome assignments to SN_both
+```{r}
+ggplot(SN_both_filtered, aes(x=rel.dp, col=chr))+ geom_histogram(bins=50)
+ggplot(SN_both_filtered, aes(x=rel.dp,y=normdp.female, col=chr))+ geom_point()
+ggplot(SN_both_filtered, aes(x=normdp.male,y=normdp.female, col=chr))+ geom_point()
+```
+#export list of w chromosomes to blast against chicken genome
+```{r}
+SN_W.scaffolds <- SN_both_filtered %>% select(chromosome,chr) %>% filter(chr == 'W') %>% select(chromosome)
+SN_W.scaffolds
+write_tsv(SN_W.scaffolds,'SN_W.scaffolds.txt',col_names = F)
+```

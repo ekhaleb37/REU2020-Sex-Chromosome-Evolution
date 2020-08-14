@@ -1,0 +1,316 @@
+---
+title: "REU2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r}
+setwd("C:/Users/kzilla/Documents/REU2020/")
+```
+```{r}
+#install.packages("tidyverse")
+#install.packages("patchwork")
+#install.packages("RColorBrewer")
+```
+```{r}
+library(tidyverse)
+library(patchwork)
+library(RColorBrewer)
+library(ggplot2)
+```
+
+#CM = chromosomes
+#JAA = Scaffolds (not sure where they are)
+#endpoints can be used as length of scaffold, coverage percentage,
+#use meandepth instead of coverage
+```{r}
+netAur_M.tb <- read_tsv("netAur_male.sort.coverage.out")
+netAur_M.tb
+netAur_Fem.tb <- read_tsv("netAur_female.sort.coverage.out")
+netAur_Fem.tb
+#netAur_F1.tb <- read_tsv("netAur_female_L001_001.sort.coverage.out")
+#netAur_F1.tb
+#netAur_F4.tb <- read_tsv("netAur_female_L004_001.sort.coverage.out")
+```
+#Changing 1st colomn name from rname to chromosome
+```{r}
+NA_male <- netAur_M.tb %>% rename(chromosome = "#rname")
+NA_male
+NA_female <- netAur_Fem.tb %>% rename(chromosome = "#rname")
+NA_female
+#NA_Fem1 <- netAur_F1.tb %>% rename(chromosome = "#rname")
+#NA_Fem1
+#NA_Fem4 <- netAur_F4.tb %>% rename(chromosome = "#rname")
+#NA_Fem4
+```
+
+```{r}
+NA_male.selected <- NA_male %>% select(chromosome,startpos,endpos,meandepth) %>% filter(endpos > 1e6) %>% mutate(meandp = mean(meandepth),normdp = meandepth/meandp,sex = "M") %>%  arrange(desc(normdp))
+NA_male.selected
+
+NA_fem.selected <- NA_female %>% select(chromosome,startpos,endpos,meandepth) %>% filter(endpos > 100000) %>% mutate(meandp = mean(meandepth),normdp = meandepth/meandp,sex = "F") %>%  arrange(desc(normdp))
+NA_fem.selected
+#NA_Fem1.selected <- NA_Fem1 %>% select(chromosome,startpos,endpos,meandepth) %>% filter(endpos > 100000) %>% mutate(meandp = mean(meandepth),normdp = meandepth/meandp,sex = "F1") %>% arrange(normdp)
+#NA_Fem1.selected
+#NA_Fem4.selected <- NA_Fem4 %>% select(chromosome,startpos,endpos,meandepth) %>% filter(endpos > 100000) %>% mutate(meandp = mean(meandepth),normdp = meandepth/meandp,sex = "F4") %>% arrange(normdp)
+#NA_Fem4.selected
+```
+#StiNai table with male and fem combined
+#filter autosomes in Fem aswell, filter
+```{r}
+NA_male.selected.filter <- NA_male.selected %>% filter(normdp > 0.8,normdp < 1.2)
+NA_male.selected.filter
+
+NA_fem.selected.filter <- NA_fem.selected %>% filter(normdp < 0.6)
+NA_fem.selected.filter
+
+#NA_Fem1.selected.filter <- NA_Fem1.selected %>% filter(normdp < 0.6)
+#NA_Fem1.selected.filter
+#NA_Fem4.selected.filter <- NA_Fem4.selected %>% filter(normdp < 0.6)
+#NA_Fem4.selected.filter
+
+netAur.filter.all <- combine(NA_male.selected.filter, NA_fem.selected.filter) %>% arrange(chromosome)
+netAur.filter.all
+```
+#Create Bed file with scaffold start-1, and end
+#In the male sample, select 3 autosomes between 1 million and 10 million
+```{r}
+NA_Male.bed <- NA_male.selected.filter %>% mutate(start=startpos-1) %>% select(chromosome,start,endpos) %>% filter(endpos>1000000,endpos<10000000) %>% filter(chromosome == "CM021788.1"|chromosome == "CM021791.1" |chromosome == "CM021787.1") 
+NA_Male.bed
+
+NA_Fem.bed <- NA_fem.selected.filter %>% mutate(start=startpos-1) %>% select(chromosome,start,endpos)
+NA_Fem.bed
+
+#NA_Fem1.bed <- NA_Fem1.selected.filter %>% mutate(start=startpos-1) %>% select(chromosome,start,endpos)
+#NA_Fem1.bed
+#NA_Fem4.bed <- NA_Fem4.selected.filter %>% mutate(start=startpos-1) %>% select(chromosome,start,endpos)
+#NA_Fem4.bed
+```
+#Export/write the bed files
+```{r}
+write_tsv(NA_Male.bed,"NA_Male.bed",col_names = F) 
+write_tsv(NA_Fem.bed,"NA_Fem.bed",col_names = F)
+#write_tsv(NA_Fem1.bed,"NA_Fem1.bed",col_names = F)
+#write_tsv(NA_Fem4.bed,"NA_Fem4.bed",col_names = F)
+```
+#filter male sex chromosomes and female autosomes and create bed files to run samtools depth
+```{r}
+NA_male.chromosomes <- NA_male %>% filter(chromosome == 'CM021788.1'|chromosome == 'CM021787.1'|chromosome == 'CM021791.1') %>% mutate(start=startpos-1) %>% select(chromosome,start,endpos)
+NA_male.chromosomes
+write_tsv(NA_male.chromosomes,'NA_male.chromosomes.bed',col_names = F)
+NA_female.autosomes <- NA_female %>% filter(chromosome == 'MU016689.1'|chromosome == 'MU016692.1'|chromosome == 'MU016690.1') %>%  mutate(start=startpos-1) %>% select(chromosome,start,endpos)
+NA_female.autosomes
+write_tsv(NA_female.autosomes,'NA_female.autosomes.bed',col_names = F)
+```
+#Load in autosome data from samtool depth on Male sample
+```{r}
+autosome.male.lst <- read_delim("NA_Male.depth.txt",delim = "\t",col_names = F)
+autosome.male.lst
+autosome.female.lst <- read_delim("NA_female.autosomes.depth.txt",delim = "\t",col_names = F)
+autosome.female.lst
+#male_autosomes <- read_delim("NA_Male.depth.txt",delim = "\t",col_names = F) %>% rename(scaffold = X1, pos = X2, cov = X3) %>% mutate(chr = 'auto') %>% select(chr,cov)
+#male_autosomes
+```
+#Load in possible sex chromosome data from samtool depth on female
+```{r}
+fem1_sexChr <- read_delim("NA_Fem1.depth.txt",delim = "\t",col_names = F) %>% rename(scaffold = X1, pos = X2, cov = X3) %>% mutate(chr = 'sex') %>% select(chr, cov)
+fem1_sexChr
+
+fem4_sexChr <- read_delim("NA_Fem4.depth.txt",delim = "\t",col_names = F) %>% rename(scaffold = X1, pos = X2, cov = X3) %>% mutate(chr = 'sex') %>% select(chr, cov)
+fem4_sexChr
+
+fem_sexChr <- read_delim("NA_fem.depth.txt",delim = "\t",col_names = F) %>% rename(scaffold = X1, pos = X2, cov = X3) %>% mutate(chr = 'sex') %>% select(chr, cov)
+fem_sexChr
+
+femcombined_temp <- combine(fem1_sexChr, fem4_sexChr)
+femcombined_temp
+```
+```{r}
+#as_fem1 <- bind_rows(male_autosomes,fem1_sexChr) %>% filter(cov < 100)
+#as_fem4 <- bind_rows(male_autosomes,fem4_sexChr) %>% filter(cov < 100)
+as_fem <- bind_rows(male_autosomes,fem_sexChr) %>% filter(cov < 100)
+as_femcomb <- bind_rows(male_autosomes,femcombined_temp) %>% filter(cov < 100)
+```
+```{r}
+ggplot(as_fem, aes(cov, color = chr,y = ..density..)) + geom_freqpoly(alpha = 0.5, position = 'identity', binwidth = 3)
+
+```
+```{r}
+ggplot(as_femcomb, aes(cov, color = chr,y = ..density..)) + geom_freqpoly(alpha = 0.5, position = 'identity', binwidth = 3)
+```
+#plot one autosome to all sex chromosomes  
+```{r}
+chromosome_CM021787.1_M <- autosome.male.lst %>% filter(X1 == 'CM021787.1') %>% rename(scaffold = X1, pos = X2, cov = X3) %>%  mutate(chr = 'auto') %>% select(chr, cov)
+chromosome_CM021787.1_M
+#chromosome_CM021787.1_F <- NA_fem.selected %>% filter(chromosome == 'CM021787.1') %>% mutate(sex = 'F')
+#chromosome_CM021787.1_F
+CM021787.1.merge <- combine(fem_sexChr,chromosome_CM021787.1_M) %>% filter(cov < 100)
+ggplot(CM021787.1.merge, aes(cov, color = chr,y = ..density..)) + geom_freqpoly(alpha = 0.5, position = 'identity', binwidth = 3)
+chromosome_CM021788.1_M <- autosome.male.lst %>% filter(X1 == 'CM021788.1') %>% rename(scaffold = X1, pos = X2, cov = X3) %>%  mutate(chr = 'auto') %>% select(chr, cov)
+chromosome_CM021788.1_M
+#chromosome_CM021788.1_F <- NA_fem.selected %>% filter(chromosome == 'CM021788.1') %>% mutate(sex = 'F')
+#chromosome_CM021788.1_F
+CM021788.1.merge <- combine(fem_sexChr,chromosome_CM021788.1_M) %>% filter(cov < 100)
+ggplot(CM021788.1.merge, aes(cov, color = chr,y = ..density..)) + geom_freqpoly(alpha = 0.5, position = 'identity', binwidth = 3)
+chromosome_CM021791.1_M <- autosome.male.lst %>% filter(X1 == 'CM021791.1') %>% rename(scaffold = X1, pos = X2, cov = X3) %>%  mutate(chr = 'auto') %>% select(chr, cov)
+chromosome_CM021791.1_M
+#chromosome_CM021791.1_F <- NA_fem.selected %>% filter(chromosome == 'CM021791.1') %>% mutate(sex = 'F')
+#chromosome_CM021791.1_F
+CM021791.1.merge <- combine(fem_sexChr,chromosome_CM021791.1_M) %>% filter(cov < 100)
+ggplot(CM021791.1.merge, aes(cov, color = chr,y = ..density..)) + geom_freqpoly(alpha = 0.5, position = 'identity', binwidth = 3)
+```
+#load in list of scaffolds for female and male
+```{r}
+#autosome.male.lst <- read_delim("NA_Male.depth.txt",delim = "\t",col_names = F) %>% rename(scaffold = X1, pos = X2, cov = X3) %>% mutate(chr = 'auto')
+#autosome.male.lst
+#fem_sexChr <- read_delim("NA_fem.depth.txt",delim = "\t",col_names = F) %>% rename(scaffold = X1, pos = X2, cov = X3) %>% mutate(chr = 'sex') 
+#fem_sexChr
+```
+#Load in possible sex chromosome data from samtool depth on female and male sample
+```{r}
+fem_sexChr <- read_delim("NA_fem.depth.txt",delim = "\t",col_names = F) %>% rename(scaffold = X1, pos = X2, cov = X3) %>% mutate(sex = 'F') %>% select(sex, cov)
+fem_sexChr
+
+male_sexChr <- read_delim("NA_male.chromosomes.depth.txt",delim = "\t",col_names = F) %>% rename(scaffold = X1, pos = X2, cov = X3) %>% mutate(sex = 'M') %>% select(sex, cov)
+male_sexChr
+```
+#plot each scaffold and confirm identity
+```{r}
+fem_MU016689.1 <- NA_female %>% filter(chromosome == 'MU016689.1') %>% select(chromosome,coverage) %>% mutate(sex = 'F')
+male_MU016689.1 <- NA_male %>% filter(chromosome == 'MU016689.1') %>% select(chromosome,coverage) %>% mutate(sex = 'M')
+MU016689.1 <- combine(fem_MU016689.1,male_MU016689.1) %>% mutate(location = 'W chromosome')
+MU016689.1
+ggplot(MU016689.1, aes(coverage, color = sex,y = ..density..)) + geom_freqpoly(alpha = 0.5, position = 'identity', binwidth = 3)
+ggplot(MU016689.1, aes(coverage, fill = sex)) + geom_histogram(alpha = 0.5, position = 'identity', binwidth = 3)
+ggplot(MU016689.1, aes(coverage, fill = sex)) + geom_bar(alpha = 0.5, position = 'identity', binwidth = 3)
+fem_MU016692.1 <- NA_female %>% filter(chromosome == 'MU016692.1') %>% select(chromosome,coverage) %>% mutate(sex = 'F')
+male_MU016692.1 <- NA_male %>% filter(chromosome == 'MU016692.1') %>% select(chromosome,coverage) %>% mutate(sex = 'M')
+MU016692.1 <- combine(fem_MU016692.1,male_MU016692.1) %>% mutate(location = 'W chromosome')
+MU016692.1
+
+fem_MU016690.1 <- NA_female %>% filter(chromosome == 'MU016690.1') %>% select(chromosome,coverage) %>% mutate(sex = 'F')
+male_MU016690.1 <- NA_male %>% filter(chromosome == 'MU016690.1') %>% select(chromosome,coverage) %>% mutate(sex = 'M')
+MU016690.1 <- combine(fem_MU016690.1,male_MU016690.1) %>% mutate(location = 'W chromosome')
+MU016690.1
+
+male_CM021788.1 <- NA_male %>% filter(chromosome == 'CM021788.1') %>% select(chromosome,coverage) %>% mutate(sex = 'M')
+fem_CM021788.1 <- NA_female %>% filter(chromosome == 'CM021788.1') %>% select(chromosome,coverage) %>% mutate(sex = 'F')
+CM021788.1 <- combine(male_CM021788.1,fem_CM021788.1) %>% mutate(location = 'autosome')
+CM021788.1
+
+male_CM021787.1 <- NA_male %>% filter(chromosome == 'CM021787.1') %>% select(chromosome,coverage) %>% mutate(sex = 'M')
+fem_CM021787.1 <- NA_female %>% filter(chromosome == 'CM021787.1') %>% select(chromosome,coverage) %>% mutate(sex = 'F')
+CM021787.1 <- combine(male_CM021787.1,fem_CM021787.1) %>% mutate(location = 'autosome')
+CM021787.1
+
+male_CM021791.1 <- NA_male %>% filter(chromosome == 'CM021791.1') %>% select(chromosome,coverage) %>% mutate(sex = 'M')
+fem_CM021791.1 <- NA_female %>% filter(chromosome == 'CM021791.1') %>% select(chromosome,coverage) %>% mutate(sex = 'F')
+CM021791.1 <- combine(male_CM021791.1,fem_CM021791.1) %>% mutate(location = 'autosome')
+CM021791.1
+```
+#combine all possible scaffold identities
+```{r}
+netAur.chromosome.locations <- combine(MU016689.1, MU016692.1, MU016690.1, CM021788.1, CM021787.1, CM021791.1)
+netAur.chromosome.locations
+```
+#plot male autosomes vs female autosomes
+```{r}
+autosome.M <- autosome.male.lst %>% rename(scaffold = X1, pos = X2, cov = X3) %>%  mutate(sex = 'M') %>% select(sex, cov)
+autosome.M
+autosome.F <- autosome.female.lst %>% rename(scaffold = X1, pos = X2, cov = X3) %>%  mutate(sex = 'F') %>% select(sex, cov)
+autosome.merge <- combine(autosome.F,autosome.M) %>% filter(cov < 100)
+ggplot(autosome.merge, aes(cov, color = sex,y = ..density..)) + geom_freqpoly(alpha = 0.5, position = 'identity', binwidth = 3)
+ggplot(autosome.merge, aes(cov, fill = sex)) + geom_histogram(alpha = 0.5, position = 'identity', binwidth = 3)
+
+```
+#plot male and female sex chromosomes
+```{r}
+sexChr.merge <- combine(fem_sexChr,male_sexChr) %>% filter(cov < 100)
+ggplot(sexChr.merge, aes(cov, color = sex,y = ..density..)) + geom_freqpoly(alpha = 0.5, position = 'identity', binwidth = 3)
+ggplot(sexChr.merge, aes(cov, fill = sex)) + geom_histogram(alpha = 0.5, position = 'identity', binwidth = 3)
+```
+#heatmap 
+```{r}
+fem_sexChr.filt <- fem_sexChr %>% filter(cov <250)
+ggplot(fem_sexChr.filt, aes(cov, fill = sex)) + geom_histogram(alpha = 0.5, position = 'identity', binwidth = 3)
+```
+#calculate mean and median
+```{r}
+mean(autosome.M$cov) 
+median(autosome.M$cov)
+mean(autosome.F$cov)
+median(autosome.F$cov)
+mean(fem_sexChr$cov)
+median(fem_sexChr$cov)
+mean(male_sexChr$cov)
+median(male_sexChr$cov)
+```
+#Make various plots
+```{r}
+ggplot(NA_male, aes(x=coverage, y=log10(meandepth))) + geom_point()
+ggplot(NA_male, aes(x=coverage, y=meanmapq)) + geom_point()
+ggplot(NA_male, aes(x=meanmapq, y=log10(meandepth))) + geom_point()
+ggplot(NA_male, aes(x=coverage, y=log10(endpos))) + geom_point()
+ggplot(NA_male, aes(x=meanmapq, y=log10(endpos))) + geom_point()
+```
+```{r}
+ggplot(NA_female, aes(x=coverage, y=log10(meandepth))) + geom_point()
+ggplot(NA_female, aes(x=coverage, y=meanmapq)) + geom_point()
+ggplot(NA_female, aes(x=meanmapq, y=log10(meandepth))) + geom_point()
+ggplot(NA_female, aes(x=coverage, y=log10(endpos))) + geom_point()
+ggplot(NA_female, aes(x=meanmapq, y=log10(endpos))) + geom_point()
+```
+#normalize meandepth
+```{r}
+NA_male %>% filter(endpos > 1e6) %>% mutate(weighted_depth = meandepth * endpos) %>% summarize(wt_norm_dp = sum(weighted_depth)/sum(endpos))
+NA_male_norm <- NA_male %>% mutate(normdp = meandepth/37.05507)
+NA_male_norm
+NA_female %>% filter(endpos > 1e6, meandepth > 30) %>% mutate(weighted_depth = meandepth * endpos) %>% summarize(wt_norm_dp = sum(weighted_depth)/sum(endpos))
+NA_female_norm <- NA_female %>% mutate(normdp = meandepth/40.69054)
+NA_female_norm
+```
+#plot normdp vs meanmapq and endpos to determine good cutoffs
+```{r}
+ggplot(NA_female_norm, aes(x=meanmapq, y=log10(normdp))) + geom_point()
+ggplot(NA_female_norm, aes(x=log10(normdp), y=log10(endpos))) + geom_point()
+ggplot(NA_male_norm, aes(x=meanmapq, y=log10(normdp))) + geom_point()
+ggplot(NA_male_norm, aes(x=log10(normdp), y=log10(endpos))) + geom_point()
+```
+#plot normdp in males vs females
+```{r}
+NA_both <- full_join(NA_male_norm, NA_female_norm, by=c('chromosome' = 'chromosome', 'endpos' = 'endpos'), suffix=c('.male', '.female'))
+NA_both
+NA_both %>% filter(endpos > 1e5, meanmapq.female > 20, coverage.female > 50) %>% ggplot(aes(x=normdp.male, y=normdp.female)) + geom_point()
+NA_both %>% mutate(rel.dp = normdp.male / normdp.female) %>% filter(rel.dp < 3) %>% ggplot(aes(x=rel.dp)) + geom_histogram(bins = 60)
+# filter(endpos > 1e4, meanmapq.female > 20, coverage.female > 50) %>%
+```
+#z = normdp.fem 0.6-1 normd.male .75-1
+autosome = normdp.fem 1.2-1.8 normdp.male 0.6-1
+W = normdp. fem 0-1 norm.dp.male0*0.1
+W maybe .4-.8 femmale .1-.4
+```{r}
+NA_W <- NA_both %>% filter(normdp.female > 0,normdp.female < 1,normdp.male > 0, normdp.male < 0.1) %>% mutate(chr = 'W')
+NA_W
+NA_Z <- NA_both %>% filter(normdp.female > 0.6,normdp.female < 1,normdp.male > 0.75, normdp.male < 1) %>% mutate(chr = 'Z')
+NA_Z
+NA_Auto <- NA_both %>% filter(normdp.female > 1.2,normdp.female < 1.8,normdp.male > 0.6, normdp.male < 1) %>% mutate(chr = 'Autosome')
+NA_Auto
+NA_possible_W <- NA_both %>% filter(normdp.female > 0.4,normdp.female < .8,normdp.male > 0.1, normdp.male < 0.4) %>% mutate(chr = 'Possible W')
+NA_possible_W
+NA_both_filtered <- rbind(NA_Z,NA_W,NA_possible_W,NA_Auto) %>% mutate(rel.dp = normdp.male / normdp.female)
+NA_both_filtered
+```
+
+#add chromsome assignments to NA_both
+```{r}
+ggplot(NA_both_filtered, aes(x=rel.dp, col=chr))+ geom_histogram(bins=50)
+ggplot(NA_both_filtered, aes(x=rel.dp,y=normdp.female, col=chr))+ geom_point()
+ggplot(NA_both_filtered, aes(x=normdp.male,y=normdp.female, col=chr))+ geom_point()
+
+```
+

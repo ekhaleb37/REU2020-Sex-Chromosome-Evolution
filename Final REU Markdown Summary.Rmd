@@ -1,0 +1,46 @@
+---
+title: "REU 2020 Summer Internship"
+author: "Khaleb Enoch"
+date: "August 13, 2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## This Projects Puropose
+The REU summer project is about understanding brood parasites and how these parasites have evolved their unique method of using similiar species to take care of their offspring. This project is looking at sex chromosme evolution as the possible method for this parenting behavior "arising". In order to study this evolution, the W chromsome of these organisms need to be reconstructed.
+
+### What We Did
+
+## Mapping back to reference genome
+First thing done was map the sequenced reads back to the reference genome, to calculate coverage of each scaffold in the samples.
+
+## Calculate the coverage of scaffolds
+
+## Use samtools to clean up files
+
+## Filter coverage output to find autosomes and sex chromosomes
+
+## Create bed file from filter autosomes and sex chromsomes
+Created Bed files containing autosomes and possible W chromosomes for each sex and ran samtools depth on them.
+
+## Run samtools depth on the bed files to get coverage for each mapped read
+
+## Compare and graph autosomal and sex chromosome data between male and females
+add 'male autosomes vs female autosomes' and 'male W sex chromosomes vs female w sex chromsomes' plots
+
+## Confirm Identitiy of scaffolds by comparing coverage levels in males and females
+add 'male and female sex chromsome' and 'male vs female autosome' plots
+
+## Normalize Meandepth
+add plots of 'meandepth vs endpos' and 'normdp vs endopos' and 'normdp.male vs normdp.female'
+
+## Using normdp male vs female plot, assign scaffolds to a location
+add filtered plot of normdp male vs female and filtered histogram
+
+## Challenge our results
+add plot of 'coverage in male vs female'
+
+## Confirm results by blasting W scaffolds to chicken genome
