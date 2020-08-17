@@ -29,6 +29,11 @@ bwa mem -t 8 netAur_index <File Name R1>.fastq.gz <File Name R2>.fastq.gz > <Out
 ## Use samtools to clean up files
 
 ## Filter coverage output to find autosomes and sex chromosomes
+#Install and load required packages. (tidyverse,rpatchwork,Rcolorbrewer,ggplot2(included in tidyverse)
+```{r}
+install.packages(<Package Name>)
+library(<Package Name>)
+```
 
 ## Create bed file from filter autosomes and sex chromsomes
 Created Bed files containing autosomes and possible W chromosomes for each sex and ran samtools depth on them.
