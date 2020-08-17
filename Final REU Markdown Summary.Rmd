@@ -10,13 +10,20 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ## This Projects Puropose
-The REU summer project is about understanding brood parasites and how these parasites have evolved their unique method of using similiar species to take care of their offspring. This project is looking at sex chromosme evolution as the possible method for this parenting behavior "arising". In order to study this evolution, the W chromsome of these organisms need to be reconstructed.
+The REU summer project is about understanding brood parasites and how these parasites have evolved their unique method of using similiar 
+species to take care of their offspring. This project is looking at sex chromosme evolution as the possible method for this parenting 
+behavior "arising". In order to study this evolution, the W chromsome of these organisms need to be reconstructed.
 
 ### What We Did
 
 ## Mapping back to reference genome
 First thing done was map the sequenced reads back to the reference genome, to calculate coverage of each scaffold in the samples.
-
+# Load up bwa package, index the reference genome, and combine the forward and reverse reads into one sam file.
+```{bash, run=F}
+module load bwa/0.7.17-fasrc01
+bwa index -p netAur_index <Reference Genome>.fna.gz
+bwa mem -t 8 netAur_index <File Name R1>.fastq.gz <File Name R2>.fastq.gz > <Output File>.sam
+```
 ## Calculate the coverage of scaffolds
 
 ## Use samtools to clean up files
