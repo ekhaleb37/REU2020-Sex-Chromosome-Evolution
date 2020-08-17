@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH -p shared
 #SBATCH -N 1
-#SBATCH -n 1
+#SBATCH -n 8
 #SBATCH --mem 8000
-#SBATCH -t 0-04:00:00
+#SBATCH -t 0-24:00:00
 #SBATCH -o netAur_bwamem.%N.%j.out
 #SBATCH -e netAur_bwamem.%N.%j.err
 
