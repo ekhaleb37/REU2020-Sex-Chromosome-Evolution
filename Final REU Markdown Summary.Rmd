@@ -19,46 +19,189 @@ behavior "arising". In order to study this evolution, the W chromsome of these o
 ## Mapping back to reference genome
 First thing done was map the sequenced reads back to the reference genome, to calculate coverage of each scaffold in the samples.
 # Load up bwa package, index the reference genome, and combine the forward and reverse reads into one sam file.
-```{bash, run=F}
+```{bash,eval=F}
 module load bwa/0.7.17-fasrc01
 bwa index -p netAur_index <Reference Genome>.fna.gz
 bwa mem -t 8 netAur_index <File Name R1>.fastq.gz <File Name R2>.fastq.gz > <Output File>.sam
 ```
+```{bash,eval=F}
+for R1 in fastqs/oxyJam/*1.fastq.gz;
+do
+#sbatch oxyJam_map.sh $R1 $R2
+module load bwa/0.7.17-fasrc01
+R1=$1
+name=`echo $R1 | sed 's/_R1.fastq.gz\+//'`
+R2=${name}_R2.fastq.gz
+#run mapping
+bwa mem -t 8 -R '@RG\tID:${name}\tSM:${name}' oxyJam_index $R1 $R2 > $name.sam
+sleep 1
+done
+```
+
 ## Calculate the coverage of scaffolds
 
-## Use samtools to clean up files
+Convert .sam files to .bam and clean up files
+```{bash,eval = F}
+for SP in fastqs/oxyJam/*.sam;
+do 
+#sbatch samtobam.sh $SP
+SP=$1
+name=`echo $SP | sed 's/.sam\+//'`
+samtools view -b -h -o $name.bam $name.sam
+samtools sort -o $name.sort.bam $name.bam
+samtools index $name.sort.bam
+samtools quickcheck $name.sort.bam
+sleep 1
+done
+
+```
+
+Merge female reads together 
+```{bash}
+samtools merge oxyJam_female.sort.bam oxyJam_female_L001_001.sort.bam oxyJam_female_L004_001.sort.bam
+```
+Run samtools coverage
+```{bash}
+samtools coverage oxyJam_male.sort.bam > oxyJam_male.sort.coverage.out
+samtools coverage oxyJam_female.sort.bam > oxyJam_female.sort.coverage.out
+```
 
 ## Filter coverage output to find autosomes and sex chromosomes
-#Install and load required packages. (tidyverse,rpatchwork,Rcolorbrewer,ggplot2(included in tidyverse)
+Install and load required packages. (tidyverse,rpatchwork,Rcolorbrewer,ggplot2(included in tidyverse)
 ```{r}
-install.packages(<Package Name>)
-library(<Package Name>)
+install.packages("tidyverse")
+install.packages("patchwork")
+install.packages("RColorBrewer")
+#install.packages(<Package Name>)
+#library(<Package Name>)
+library(tidyverse)
+library(patchwork)
+library(RColorBrewer)
+library(ggplot2)
+```
+Read in coverage data and rename columns
+```{r}
+oxyJam_M.tb <- read_tsv("oxyJam_male.sort.coverage.out")
+oxyJam_Fem.tb <- read_tsv("oxyJam_female.sort.coverage.out")
+OJ_male <- oxyJam_M.tb %>% rename(chromosome = "#rname")
+OJ_female <- oxyJam_Fem.tb %>% rename(chromosome = "#rname")
+```
+Filter coverage data by endpos, create colomns for mean depth and normalized depth  of each scaffold, then filter by normalized depth
+```{r}
+OJ_male.selected <- OJ_male %>% select(chromosome,startpos,endpos,meandepth) %>% filter(endpos > 1e6) %>% mutate(meandp = mean(meandepth),normdp = meandepth/meandp,sex = "M") %>%  arrange(desc(normdp))
+OJ_fem.selected <- OJ_female %>% select(chromosome,startpos,endpos,meandepth) %>% filter(endpos > 100000) %>% mutate(meandp = mean(meandepth),normdp = meandepth/meandp,sex = "F") %>%  arrange(desc(normdp))
+OJ_male.selected.filter <- OJ_male.selected %>% filter(normdp > 0.8,normdp < 1.2)
+OJ_fem.selected.filter <- OJ_fem.selected %>% filter(normdp < 0.6)
 ```
 
 ## Create bed file from filter autosomes and sex chromsomes
-Created Bed files containing autosomes and possible W chromosomes for each sex and ran samtools depth on them.
+Create and export Bed files containing a few autosomes and possible W chromosomes for each sex
+```{r}
+OJ_Male.bed <- OJ_male.selected.filter %>% mutate(start=startpos-1) %>% select(chromosome,start,endpos) %>% filter(endpos>1000000,endpos<10000000) %>% filter(chromosome == "CM021822.1"|chromosome == "CM021821.1" |chromosome == "CM021825.1")
+OJ_male.chromosomes <- OJ_male %>% filter(chromosome == 'CM021822.1'|chromosome == 'CM021821.1'|chromosome == 'CM021825.1') %>% mutate(start=startpos-1) %>% select(chromosome,start,endpos)
+OJ_Fem.bed <- OJ_fem.selected.filter %>% mutate(start=startpos-1) %>% select(chromosome,start,endpos)
+OJ_female.autosomes <- OJ_female %>% filter(chromosome == 'MU018450.1'|chromosome == 'MU018386.1'|chromosome == 'MU017945.1'|chromosome == 'MU018675.1'|chromosome == 'MU017919.1'|chromosome == 'MU017967.1'|chromosome == 'MU018416.1'|chromosome == 'MU018370.1'|chromosome == 'MU018302.1'|chromosome == 'MU018677.1'|chromosome == 'MU017909.1'|chromosome == 'MU018361.1'|chromosome == 'MU017883.1'|chromosome == 'MU018405.1') %>%  mutate(start=startpos-1) %>% select(chromosome,start,endpos)
 
+write_tsv(OJ_Male.bed,"OJ_Male.bed",col_names = F)
+write_tsv(OJ_male.chromosomes,'OJ_male.chromosomes.bed',col_names = F)
+write_tsv(OJ_Fem.bed,"OJ_Fem.bed",col_names = F)
+write_tsv(OJ_female.autosomes,'OJ_female.autosomes.bed',col_names = F)
+
+```
 ## Run samtools depth on the bed files to get coverage for each mapped read
+```{bash}
+module load samtools/1.10-fasrc01
+samtools depth -b OJ_male.chromosomes.bed -o OJ_male.chromosomes.depth.txt oxyJam_male.sort.bam
+samtools depth -b OJ_female.autosomes.bed -o OJ_female.autosomes.depth.txt oxyJam_female.sort.bam
+samtools depth -b OJ_Male.bed -o OJ_Male.depth.txt oxyJam_male.sort.bam
+samtools depth -b OJ_Fem.bed -o OJ_fem.depth.txt oxyJam_female.sort.bam
+```
 
 ## Compare and graph autosomal and sex chromosome data between male and females
-add 'male autosomes vs female autosomes' and 'male W sex chromosomes vs female w sex chromsomes' plots
-
-## Confirm Identitiy of scaffolds by comparing coverage levels in males and females
-add 'male and female sex chromsome' and 'male vs female autosome' plots
-
+Load in output from samtools depth
+```{r}
+autosome.male.lst <- read_delim("OJ_Male.depth.txt",delim = "\t",col_names = F)
+autosome.female.lst <- read_delim("OJ_female.autosomes.depth.txt",delim = "\t",col_names = F)
+fem_sexChr <- read_delim("OJ_fem.depth.txt",delim = "\t",col_names = F) %>% rename(scaffold = X1, pos = X2, cov = X3) %>% mutate(sex = 'F') %>% mutate(chr = 'Sex Chromosomes') %>% select(chr, cov)
+male_sexChr <- read_delim("OJ_male.chromosomes.depth.txt",delim = "\t",col_names = F) %>% rename(scaffold = X1, pos = X2, cov = X3) %>% mutate(chr = 'Sex Chromosomes') %>% select(chr, cov)
+```
+Combine autosomes andd sex chromsomes for each sex and plot them
+```{r}
+autosome.M <- autosome.male.lst %>% rename(scaffold = X1, pos = X2, cov = X3) %>%  mutate(sex = 'M') %>% select(sex, cov)
+autosome.F <- autosome.female.lst %>% rename(scaffold = X1, pos = X2, cov = X3) %>%  mutate(sex = 'F') %>% select(sex, cov)
+autosome.merge <- rbind(autosome.F,autosome.M) %>% filter(cov < 100)
+ggplot(autosome.merge, aes(cov, color = sex,y = ..density..)) + geom_freqpoly(alpha = 0.5, position = 'identity', binwidth = 3)
+fem_sexChr_plot <- fem_sexChr %>% mutate(sex = 'F')
+male_sexChr_plot <- male_sexChr %>% mutate(sex = 'M')
+sexChr.merge <- rbind(fem_sexChr_plot,male_sexChr_plot) %>% filter(cov < 100)
+ggplot(sexChr.merge, aes(cov, color = sex,y = ..density..)) + geom_freqpoly(alpha = 0.5, position = 'identity', binwidth = 3)
+```
+Look for correlations by making various plots
+```{r}
+ggplot(OJ_male, aes(x=coverage, y=log10(meandepth))) + geom_point()
+ggplot(OJ_male, aes(x=coverage, y=meanmapq)) + geom_point()
+ggplot(OJ_male, aes(x=meanmapq, y=log10(meandepth))) + geom_point()
+ggplot(OJ_male, aes(x=coverage, y=log10(endpos))) + geom_point()
+ggplot(OJ_male, aes(x=meanmapq, y=log10(endpos))) + geom_point()
+```
+```{r}
+ggplot(OJ_female, aes(x=coverage, y=log10(meandepth))) + geom_point()
+ggplot(OJ_female, aes(x=coverage, y=meanmapq)) + geom_point()
+ggplot(OJ_female, aes(x=meanmapq, y=log10(meandepth))) + geom_point()
+ggplot(OJ_female, aes(x=coverage, y=log10(endpos))) + geom_point()
+ggplot(OJ_female, aes(x=meanmapq, y=log10(endpos))) + geom_point()
+```
 ## Normalize Meandepth
-add plots of 'meandepth vs endpos' and 'normdp vs endopos' and 'normdp.male vs normdp.female'
-
+Normalize mean depth 
+```{r}
+OJ_male %>% filter(endpos > 1e6) %>% mutate(weighted_depth = meandepth * endpos) %>% summarize(wt_norm_dp = sum(weighted_depth)/sum(endpos))
+OJ_male_norm <- OJ_male %>% mutate(normdp = meandepth/37.05507)
+OJ_female %>% filter(endpos > 1e6, meandepth > 30) %>% mutate(weighted_depth = meandepth * endpos) %>% summarize(wt_norm_dp = sum(weighted_depth)/sum(endpos))
+OJ_female_norm <- OJ_female %>% mutate(normdp = meandepth/40.69054)
+```
+plot normdp vs meanmapq and endpos to determine good cutoffs
+```{r}
+ggplot(OJ_female_norm, aes(x=meanmapq, y=log10(normdp))) + geom_point()
+ggplot(OJ_female_norm, aes(x=log10(normdp), y=log10(endpos))) + geom_point()
+ggplot(OJ_male_norm, aes(x=meanmapq, y=log10(normdp))) + geom_point()
+ggplot(OJ_male_norm, aes(x=log10(normdp), y=log10(endpos))) + geom_point()
+```
+Plot male normalized depth vs female normalized depth
+```{r}
+OJ_both <- full_join(OJ_male_norm, OJ_female_norm, by=c('chromosome' = 'chromosome', 'endpos' = 'endpos'), suffix=c('.male', '.female')) 
+OJ_both %>% filter(endpos > 1e5, meanmapq.female > 20, coverage.female > 50) %>% ggplot(aes(x=normdp.male, y=normdp.female)) + geom_point()
+OJ_both %>% mutate(rel.dp = normdp.male / normdp.female) %>% filter(rel.dp < 3) %>% ggplot(aes(x=rel.dp)) + geom_histogram(bins = 60)
+``` 
 ## Using normdp male vs female plot, assign scaffolds to a location
+Assign scaffold locations, and plot 
+```{r}
+OJ_W <- OJ_both %>% filter(normdp.female > 0.4,normdp.female < 1.1,normdp.male > 0, normdp.male < 0.15) %>% mutate(chr = 'W')
+OJ_Z <- OJ_both %>% filter(normdp.female > 0,normdp.female < 1,normdp.male > 0.8, normdp.male < 1) %>% mutate(chr= 'Z')
+OJ_Auto <- OJ_both %>% filter(normdp.female > 1.4,normdp.female < 2.5,normdp.male > 0.6, normdp.male < 1.2) %>% mutate(chr = 'Autosome')
+OJ_both_filtered <- rbind(OJ_Z,OJ_W,OJ_Auto) %>% mutate(rel.dp = normdp.male / normdp.female)
+```
+
 add filtered plot of normdp male vs female and filtered histogram
 ```{r}
-ggplot(NA_both_filtered, aes(x=rel.dp, col=chr))+ geom_histogram(bins=50)
-ggplot(NA_both_filtered, aes(x=rel.dp,y=normdp.female, col=chr))+ geom_point()
-ggplot(NA_both_filtered, aes(x=normdp.male,y=normdp.female, col=chr))+ geom_point()
+ggplot(OJ_both_filtered, aes(x=rel.dp, col=chr))+ geom_histogram(bins=50)
+ggplot(OJ_both_filtered, aes(x=rel.dp,y=normdp.female, col=chr))+ geom_point()
+ggplot(OJ_both_filtered, aes(x=normdp.male,y=normdp.female, col=chr))+ geom_point()
 ```
 ## Challenge our results
 add plot of 'coverage in male vs female'
 ```{r,include=FALSE}
-NA_both_filtered %>% filter(chr == 'W') %>% ggplot(aes(x=coverage.female, y=coverage.male))+ geom_point() #expect 100 coverage in fem, and expect lower coverage in males
+OJ_both_filtered %>% filter(chr == 'W') %>% ggplot(aes(x=coverage.female, y=coverage.male))+ geom_point()
 ```
 ## Confirm results by blasting W scaffolds to chicken genome
+Export list of W chromosomes to blast against chicken genome
+```{r}
+OJ_W.scaffolds <- OJ_both_filtered %>% select(chromosome,startpos.female, endpos,chr) %>% filter(chr == 'W') %>% unite(col = a, chromosome, startpos.female, sep = ':', remove = T) %>% unite(col = b, a, endpos, sep = '-', remove = T) %>% rename(position = b) %>% select(-chr)
+write_tsv(OJ_W.scaffolds,'OJ_W.scaffolds.txt',col_names = F)
+```
+Blast the list of W chromosomes to chicken genome
+```{bash,eval=F}
+makeblastdb -in chicken.fa -dbtype nucl
+samtools faidx oxyJam.refGenome.fa -r OJ_W.scaffolds.txt -o OJ_Wscaffolds.fa
+blastn -query OJ_Wscaffolds.fa -db chicken.fa -out OJ_Wscaffolds.blasted.txt
+```
+
